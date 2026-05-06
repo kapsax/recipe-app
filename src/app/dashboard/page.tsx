@@ -194,32 +194,22 @@ export default function DashboardPage() {
     setPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const readGenerateStream = async (fetchBody: object): Promise<{ recipes: Recipe[]; uploadBatchId: string }> => {
+  const callGenerateAPI = async (fetchBody: object): Promise<{ recipes: Recipe[]; uploadBatchId: string }> => {
     const res = await fetch("/api/recipes/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(fetchBody),
     });
-    if (!res.ok || !res.body) {
-      const text = await res.text();
-      let errMsg = "Failed to generate recipes";
-      try { errMsg = JSON.parse(text).error || errMsg; } catch { /* use default */ }
-      throw new Error(errMsg);
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error("Server error. Please try again.");
     }
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let result = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      result += decoder.decode(value, { stream: true });
+    if (!res.ok || data.error) {
+      throw new Error(data.error || "Failed to generate recipes");
     }
-    // Parse the last SSE data line which contains the final result
-    const lines = result.split("\n").filter((l) => l.startsWith("data: "));
-    const lastLine = lines[lines.length - 1];
-    if (!lastLine) throw new Error("No response received from server");
-    const data = JSON.parse(lastLine.replace("data: ", ""));
-    if (data.error) throw new Error(data.error);
     return data;
   };
 
@@ -233,7 +223,7 @@ export default function DashboardPage() {
     setShowUpload(false);
     setCurrentBatchId(null);
     try {
-      const data = await readGenerateStream({ images: previews });
+      const data = await callGenerateAPI({ images: previews });
       setRecipes(data.recipes);
       setCurrentBatchId(data.uploadBatchId);
       setHistoryLoaded(false);
@@ -251,7 +241,7 @@ export default function DashboardPage() {
     setLoadingMore(true);
     try {
       const excludeTitles = recipes.map((r) => r.title);
-      const data = await readGenerateStream({
+      const data = await callGenerateAPI({
         images: previews,
         excludeTitles,
         uploadBatchId: currentBatchId,
