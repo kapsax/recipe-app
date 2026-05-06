@@ -141,7 +141,7 @@ export default function DashboardPage() {
 
   if (!session) return null;
 
-  const compressImage = (file: File, maxDim = 1024, quality = 0.7): Promise<string> => {
+  const compressImage = (file: File, maxDim = 800, quality = 0.6): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -210,8 +210,15 @@ export default function DashboardPage() {
         body: JSON.stringify({ images: previews }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to generate recipes");
+        const text = await res.text();
+        let errMsg = "Failed to generate recipes";
+        try {
+          const err = JSON.parse(text);
+          errMsg = err.error || errMsg;
+        } catch {
+          if (text.includes("too large") || res.status === 413) errMsg = "Images are too large. Try fewer or smaller photos.";
+        }
+        throw new Error(errMsg);
       }
       const data = await res.json();
       setRecipes(data.recipes);
@@ -241,8 +248,15 @@ export default function DashboardPage() {
         }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to generate more recipes");
+        const text = await res.text();
+        let errMsg = "Failed to generate more recipes";
+        try {
+          const err = JSON.parse(text);
+          errMsg = err.error || errMsg;
+        } catch {
+          if (text.includes("too large") || res.status === 413) errMsg = "Images are too large. Try fewer or smaller photos.";
+        }
+        throw new Error(errMsg);
       }
       const data = await res.json();
       setRecipes((prev) => [...prev, ...data.recipes]);
