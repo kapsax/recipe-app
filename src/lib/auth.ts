@@ -17,12 +17,14 @@ export const authOptions: NextAuthOptions = {
         (session.user as { id: string }).id = user.id;
         const dbUser = await prisma.user.findUnique({
           where: { id: user.id },
-          select: { onboarded: true, preferences: true },
+          select: { onboarded: true, preferences: true, dietType: true },
         });
         (session.user as { onboarded: boolean }).onboarded =
           dbUser?.onboarded ?? false;
         (session.user as { preferences: string | null }).preferences =
           dbUser?.preferences ?? null;
+        (session.user as unknown as { dietType: string }).dietType =
+          dbUser?.dietType ?? "both";
       }
       return session;
     },

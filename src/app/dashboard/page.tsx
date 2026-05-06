@@ -22,6 +22,7 @@ interface Recipe {
   allergies?: string | null;
   imageUrl?: string | null;
   aiImageUrl?: string | null;
+  uploadBatchId?: string | null;
   createdAt: string;
 }
 
@@ -39,6 +40,13 @@ interface ShoppingItem {
   checked: boolean;
 }
 
+interface HistoryGroup {
+  batchId: string;
+  uploadImage: string | null;
+  recipes: Recipe[];
+  date: string;
+}
+
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const MEAL_TYPES = ["breakfast", "lunch", "dinner"];
 
@@ -47,9 +55,9 @@ export default function DashboardPage() {
   const router = useRouter();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(false);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [previews, setPreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeTab, setActiveTab] = useState<"recipes" | "planner" | "shopping">("recipes");
+  const [activeTab, setActiveTab] = useState<"recipes" | "planner" | "shopping" | "history">("recipes");
   const [planner, setPlanner] = useState<PlannerEntry[]>([]);
   const [plannerLoaded, setPlannerLoaded] = useState(false);
   const [shopping, setShopping] = useState<ShoppingItem[]>([]);
@@ -57,13 +65,16 @@ export default function DashboardPage() {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [showUpload, setShowUpload] = useState(true);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [history, setHistory] = useState<HistoryGroup[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/");
     }
   }, [status, router]);
-
 
   const loadPlanner = useCallback(async () => {
     if (plannerLoaded) return;
@@ -93,6 +104,33 @@ export default function DashboardPage() {
     }
   }, [shoppingLoaded]);
 
+  const loadHistory = useCallback(async () => {
+    if (historyLoaded) return;
+    try {
+      const res = await fetch("/api/recipes");
+      if (res.ok) {
+        const allRecipes: Recipe[] = await res.json();
+        const groups: Record<string, HistoryGroup> = {};
+        allRecipes.forEach((recipe) => {
+          const key = recipe.uploadBatchId || recipe.id;
+          if (!groups[key]) {
+            groups[key] = {
+              batchId: key,
+              uploadImage: recipe.imageUrl ?? null,
+              recipes: [],
+              date: recipe.createdAt,
+            };
+          }
+          groups[key].recipes.push(recipe);
+        });
+        setHistory(Object.values(groups));
+        setHistoryLoaded(true);
+      }
+    } catch {
+      toast.error("Failed to load history");
+    }
+  }, [historyLoaded]);
+
   if (status === "loading") {
     return (
       <div className="flex flex-1 items-center justify-center min-h-screen">
@@ -104,43 +142,91 @@ export default function DashboardPage() {
   if (!session) return null;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (ev) => setPreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const newPreviews: string[] = [];
+    let loaded = 0;
+
+    Array.from(files).forEach((file) => {
+      if (!file.type.startsWith("image/")) {
+        toast.error(`${file.name} is not an image file`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        newPreviews.push(ev.target?.result as string);
+        loaded++;
+        if (loaded === files.length) {
+          setPreviews((prev) => [...prev, ...newPreviews]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removePreview = (index: number) => {
+    setPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleGenerate = async () => {
-    if (!preview) {
-      toast.error("Please upload a food image first");
+    if (previews.length === 0) {
+      toast.error("Please upload at least one food image");
       return;
     }
     setLoading(true);
     setRecipes([]);
     setShowUpload(false);
+    setCurrentBatchId(null);
     try {
       const res = await fetch("/api/recipes/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: preview }),
+        body: JSON.stringify({ images: previews }),
       });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Failed to generate recipes");
       }
       const data = await res.json();
-      setRecipes(data);
+      setRecipes(data.recipes);
+      setCurrentBatchId(data.uploadBatchId);
+      setHistoryLoaded(false);
       toast.success("Recipes generated!");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
       setShowUpload(true);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGenerateMore = async () => {
+    if (previews.length === 0) return;
+    setLoadingMore(true);
+    try {
+      const excludeTitles = recipes.map((r) => r.title);
+      const res = await fetch("/api/recipes/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          images: previews,
+          excludeTitles,
+          uploadBatchId: currentBatchId,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to generate more recipes");
+      }
+      const data = await res.json();
+      setRecipes((prev) => [...prev, ...data.recipes]);
+      setHistoryLoaded(false);
+      toast.success("More recipes generated!");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -227,10 +313,11 @@ export default function DashboardPage() {
     planner.find((p) => p.day === day && p.mealType === mealType);
 
   const startNewUpload = () => {
-    setPreview(null);
+    setPreviews([]);
     setRecipes([]);
     setShowUpload(true);
     setSelectedRecipe(null);
+    setCurrentBatchId(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -333,6 +420,7 @@ export default function DashboardPage() {
             { id: "recipes" as const, label: "Recipes", action: () => {} },
             { id: "planner" as const, label: "Weekly Planner", action: loadPlanner },
             { id: "shopping" as const, label: "Shopping Cart", action: loadShopping },
+            { id: "history" as const, label: "History", action: loadHistory },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -361,43 +449,60 @@ export default function DashboardPage() {
           <div>
             {showUpload && !loading && recipes.length === 0 && (
               <div className="bg-white rounded-xl border border-gray-200 p-8 mb-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">Upload Food Photo</h2>
-                <p className="text-gray-500 mb-6">Take a photo of ingredients or food items to get personalized recipe recommendations.</p>
-                <div className="flex flex-col sm:flex-row gap-4">
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Upload Food Photos</h2>
+                <p className="text-gray-500 mb-6">Upload one or more photos of ingredients or food items to get personalized recipe recommendations.</p>
+                <div className="flex flex-col gap-4">
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex-1 border-2 border-dashed border-gray-300 rounded-xl p-10 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50/50 transition-all"
+                    className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50/50 transition-all"
                   >
-                    {preview ? (
-                      <img src={preview} alt="Preview" className="max-h-64 mx-auto rounded-lg object-cover" />
+                    {previews.length > 0 ? (
+                      <div className="flex flex-wrap gap-3 justify-center">
+                        {previews.map((p, i) => (
+                          <div key={i} className="relative group">
+                            <img src={p} alt={`Preview ${i + 1}`} className="h-32 w-32 object-cover rounded-lg" />
+                            <button
+                              onClick={(e) => { e.stopPropagation(); removePreview(i); }}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                            >
+                              x
+                            </button>
+                          </div>
+                        ))}
+                        <div className="h-32 w-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 hover:border-orange-400 hover:text-orange-400">
+                          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                        </div>
+                      </div>
                     ) : (
                       <div>
                         <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
-                        <p className="text-gray-500 font-medium mb-1">Click to upload a food image</p>
-                        <p className="text-sm text-gray-400">JPG, PNG, WebP supported</p>
+                        <p className="text-gray-500 font-medium mb-1">Click to upload food images</p>
+                        <p className="text-sm text-gray-400">Upload multiple images for combined recipe suggestions</p>
                       </div>
                     )}
-                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                    <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileChange} className="hidden" />
                   </div>
-                  <div className="flex flex-col gap-2 justify-end">
-                    <button
-                      onClick={handleGenerate}
-                      disabled={loading || !preview}
-                      className="bg-orange-500 text-white font-semibold px-6 py-3 rounded-xl hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                    >
-                      Get Recipes
-                    </button>
-                    {preview && (
+                  <div className="flex gap-2 justify-end">
+                    {previews.length > 0 && (
                       <button
-                        onClick={() => { setPreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                        className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer"
+                        onClick={() => { setPreviews([]); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                        className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer px-4 py-2"
                       >
-                        Clear
+                        Clear all
                       </button>
                     )}
+                    <button
+                      onClick={handleGenerate}
+                      disabled={loading || previews.length === 0}
+                      className="bg-orange-500 text-white font-semibold px-6 py-3 rounded-xl hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                    >
+                      Get Recipes {previews.length > 1 ? `(${previews.length} images)` : ""}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -407,7 +512,7 @@ export default function DashboardPage() {
               <div className="flex items-center justify-center py-20">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-                  <p className="text-gray-600 font-medium">Analyzing your image with AI...</p>
+                  <p className="text-gray-600 font-medium">Analyzing your {previews.length > 1 ? "images" : "image"} with AI...</p>
                   <p className="text-sm text-gray-400 mt-1">This may take 10-15 seconds</p>
                 </div>
               </div>
@@ -435,6 +540,28 @@ export default function DashboardPage() {
                       onClick={() => setSelectedRecipe(recipe)}
                     />
                   ))}
+                </div>
+                {/* Generate More Button */}
+                <div className="flex justify-center mt-8">
+                  <button
+                    onClick={handleGenerateMore}
+                    disabled={loadingMore}
+                    className="flex items-center gap-2 bg-white border-2 border-orange-500 text-orange-600 font-semibold px-6 py-3 rounded-xl hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  >
+                    {loadingMore ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-500"></div>
+                        Generating more...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Generate More Recipes
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             )}
@@ -551,9 +678,98 @@ export default function DashboardPage() {
             )}
           </div>
         )}
+
+        {/* HISTORY TAB */}
+        {activeTab === "history" && (
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Recipe History</h2>
+            {history.length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+                <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-gray-500 font-medium">No recipe history yet</p>
+                <p className="text-sm text-gray-400 mt-1">Upload food photos to generate recipes and they will appear here.</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {history.map((group) => (
+                  <div key={group.batchId} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="p-4 bg-gray-50 border-b border-gray-200 flex items-center gap-4">
+                      {group.uploadImage ? (
+                        <img
+                          src={group.uploadImage}
+                          alt="Uploaded"
+                          className="w-16 h-16 object-cover rounded-lg border border-gray-200"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {group.recipes.length} recipe{group.recipes.length !== 1 ? "s" : ""} generated
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(group.date).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {group.recipes.map((recipe) => (
+                          <div
+                            key={recipe.id}
+                            onClick={() => setSelectedRecipe(recipe)}
+                            className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                          >
+                            <RecipeImageSmall recipe={recipe} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{recipe.title}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs text-gray-500">{recipe.time}</span>
+                                <span className="text-xs text-gray-500">{recipe.calories} kcal</span>
+                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${recipe.isVeg ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                                  {recipe.isVeg ? "VEG" : "NON-VEG"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </main>
     </div>
   );
+}
+
+function RecipeImageSmall({ recipe }: { recipe: Recipe }) {
+  const imageUrl = recipe.aiImageUrl || recipe.imageUrl;
+  if (!imageUrl) {
+    return (
+      <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      </div>
+    );
+  }
+  return <img src={imageUrl} alt="" className="w-12 h-12 object-cover rounded-lg shrink-0" />;
 }
 
 function RecipeCardThumbnail({ recipe, onClick }: { recipe: Recipe; onClick: () => void }) {
@@ -564,13 +780,25 @@ function RecipeCardThumbnail({ recipe, onClick }: { recipe: Recipe; onClick: () 
       onClick={onClick}
       className="bg-white rounded-xl border border-gray-200 overflow-hidden cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all duration-200"
     >
-      {imageUrl && (
+      {imageUrl ? (
         <div className="relative h-48 w-full">
           <img
             src={imageUrl}
             alt={recipe.title}
             className="w-full h-full object-cover"
           />
+          <div className="absolute top-3 right-3">
+            <span className={`text-xs font-bold px-2 py-1 rounded-full ${recipe.isVeg ? "bg-green-500 text-white" : "bg-red-500 text-white"}`}>
+              {recipe.isVeg ? "VEG" : "NON-VEG"}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="relative h-48 w-full bg-gray-100 flex flex-col items-center justify-center">
+          <svg className="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <p className="text-sm text-gray-400 font-medium">Image not available</p>
           <div className="absolute top-3 right-3">
             <span className={`text-xs font-bold px-2 py-1 rounded-full ${recipe.isVeg ? "bg-green-500 text-white" : "bg-red-500 text-white"}`}>
               {recipe.isVeg ? "VEG" : "NON-VEG"}

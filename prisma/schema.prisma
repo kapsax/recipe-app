@@ -14,6 +14,7 @@ model User {
   emailVerified DateTime?
   image         String?
   preferences   String?
+  dietType      String         @default("both")
   onboarded     Boolean        @default(false)
   accounts      Account[]
   sessions      Session[]
@@ -67,6 +68,7 @@ model Recipe {
   allergies        String?
   imageUrl         String?
   aiImageUrl       String?
+  uploadBatchId    String?
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   planner          MealPlanner[]
   createdAt        DateTime      @default(now())

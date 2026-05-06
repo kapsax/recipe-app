@@ -16,15 +16,50 @@ export async function POST(request: Request) {
     const userId = (session.user as { id: string }).id;
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { preferences: true },
+      select: { preferences: true, dietType: true },
     });
 
-    const { image } = await request.json();
+    const { image, images, excludeTitles, uploadBatchId: existingBatchId } = await request.json();
     const preferences = user?.preferences ? JSON.parse(user.preferences) : [];
+    const dietType = user?.dietType || "both";
 
-    const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
-    const mediaType =
-      image.match(/^data:(image\/\w+);base64,/)?.[1] || "image/jpeg";
+    // Support both single image and multiple images
+    const imageList: string[] = images || (image ? [image] : []);
+    if (imageList.length === 0) {
+      return NextResponse.json({ error: "No images provided" }, { status: 400 });
+    }
+
+    // Build image content blocks
+    const imageBlocks = imageList.map((img: string) => {
+      const base64Data = img.replace(/^data:image\/\w+;base64,/, "");
+      const mediaType = img.match(/^data:(image\/\w+);base64,/)?.[1] || "image/jpeg";
+      return {
+        type: "image" as const,
+        source: {
+          type: "base64" as const,
+          media_type: mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+          data: base64Data,
+        },
+      };
+    });
+
+    // Diet type instruction
+    let dietInstruction = "";
+    if (dietType === "veg") {
+      dietInstruction = "\nIMPORTANT: Only suggest VEGETARIAN recipes. No meat, fish, or eggs.";
+    } else if (dietType === "nonveg") {
+      dietInstruction = "\nIMPORTANT: Only suggest NON-VEGETARIAN recipes that include meat, fish, or eggs.";
+    }
+
+    // Exclude already generated recipes
+    let excludeInstruction = "";
+    if (excludeTitles && excludeTitles.length > 0) {
+      excludeInstruction = `\nIMPORTANT: Do NOT suggest these recipes that were already generated: ${excludeTitles.join(", ")}. Suggest completely different recipes.`;
+    }
+
+    const multiImageNote = imageList.length > 1
+      ? `You are looking at ${imageList.length} images of food items/ingredients. Consider ALL items across ALL images when suggesting recipes. The recipes should use a combination of ingredients from different images.`
+      : "Analyze this food image carefully. Identify ALL the food items/ingredients visible in the image.";
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
@@ -33,27 +68,16 @@ export async function POST(request: Request) {
         {
           role: "user",
           content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: mediaType as
-                  | "image/jpeg"
-                  | "image/png"
-                  | "image/gif"
-                  | "image/webp",
-                data: base64Data,
-              },
-            },
+            ...imageBlocks,
             {
               type: "text",
-              text: `Analyze this food image carefully. Identify ALL the food items/ingredients visible in the image.
+              text: `${multiImageNote}
 
 Based on the items you see, suggest 3 COMPLETE, AUTHENTIC recipes that incorporate these visible ingredients. These should be real, well-known recipes (as you'd find on popular cooking websites) — not improvised combinations.
 
 The recipes must be COMPLETE with ALL ingredients needed (including spices, oils, and basics). Separately list which ingredients from the full recipe are NOT visible in the image as "missingItems" — these are items the user will need to buy.
 
-The user prefers these cuisines: ${preferences.join(", ") || "any"}.
+The user prefers these cuisines: ${preferences.join(", ") || "any"}.${dietInstruction}${excludeInstruction}
 
 Return ONLY valid JSON (no markdown, no code blocks) in this exact format:
 [
@@ -100,27 +124,19 @@ IMPORTANT RULES:
     try {
       recipes = JSON.parse(textContent.text);
     } catch {
-      // Try to extract JSON array from response
       const jsonMatch = textContent.text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         try {
           recipes = JSON.parse(jsonMatch[0]);
         } catch {
-          // Try to fix truncated JSON by closing open brackets
           let fixedJson = jsonMatch[0];
-          // Count open/close brackets and braces
           const openBraces = (fixedJson.match(/{/g) || []).length;
           const closeBraces = (fixedJson.match(/}/g) || []).length;
           const openBrackets = (fixedJson.match(/\[/g) || []).length;
           const closeBrackets = (fixedJson.match(/]/g) || []).length;
-
-          // Remove any trailing incomplete property
           fixedJson = fixedJson.replace(/,\s*"[^"]*"?\s*:?\s*[^,}\]]*$/, "");
-
-          // Close unclosed braces and brackets
           for (let i = 0; i < openBraces - closeBraces; i++) fixedJson += "}";
           for (let i = 0; i < openBrackets - closeBrackets; i++) fixedJson += "]";
-
           try {
             recipes = JSON.parse(fixedJson);
           } catch {
@@ -139,12 +155,12 @@ IMPORTANT RULES:
       }
     }
 
-    // Ensure recipes is an array
     if (!Array.isArray(recipes)) {
       recipes = [recipes];
     }
 
-    // Generate food images using loremflickr (free, no API key needed)
+    const uploadBatchId = existingBatchId || `batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
     const recipesWithImages = recipes.map((recipe: Record<string, unknown>, index: number) => {
       const title = (recipe.title as string).toLowerCase();
       const keywords = title
@@ -158,38 +174,42 @@ IMPORTANT RULES:
       return { ...recipe, aiImageUrl };
     });
 
+    // Store the first image as the representative upload image
+    const uploadImage = imageList[0];
+
     const savedRecipes = await Promise.all(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       recipesWithImages.map((recipe: any) =>
-          prisma.recipe.create({
-            data: {
-              userId,
-              title: recipe.title,
-              titleHindi: recipe.titleHindi || null,
-              description: recipe.description,
-              descriptionHindi: recipe.descriptionHindi || null,
-              time: recipe.time,
-              calories: recipe.calories,
-              isVeg: recipe.isVeg,
-              ingredients: JSON.stringify(recipe.ingredients),
-              steps: JSON.stringify(recipe.steps),
-              stepsHindi: recipe.stepsHindi
-                ? JSON.stringify(recipe.stepsHindi)
-                : null,
-              missingItems: recipe.missingItems?.length
-                ? JSON.stringify(recipe.missingItems)
-                : null,
-              allergies: recipe.allergies?.length
-                ? JSON.stringify(recipe.allergies)
-                : null,
-              imageUrl: image,
-              aiImageUrl: recipe.aiImageUrl || null,
-            },
-          })
+        prisma.recipe.create({
+          data: {
+            userId,
+            title: recipe.title,
+            titleHindi: recipe.titleHindi || null,
+            description: recipe.description,
+            descriptionHindi: recipe.descriptionHindi || null,
+            time: recipe.time,
+            calories: recipe.calories,
+            isVeg: recipe.isVeg,
+            ingredients: JSON.stringify(recipe.ingredients),
+            steps: JSON.stringify(recipe.steps),
+            stepsHindi: recipe.stepsHindi
+              ? JSON.stringify(recipe.stepsHindi)
+              : null,
+            missingItems: recipe.missingItems?.length
+              ? JSON.stringify(recipe.missingItems)
+              : null,
+            allergies: recipe.allergies?.length
+              ? JSON.stringify(recipe.allergies)
+              : null,
+            imageUrl: uploadImage,
+            aiImageUrl: recipe.aiImageUrl || null,
+            uploadBatchId,
+          },
+        })
       )
     );
 
-    return NextResponse.json(savedRecipes);
+    return NextResponse.json({ recipes: savedRecipes, uploadBatchId });
   } catch (error) {
     console.error("Recipe generation error:", error);
     return NextResponse.json(

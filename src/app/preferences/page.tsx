@@ -20,10 +20,17 @@ const CUISINE_OPTIONS = [
   { id: "american", label: "American", emoji: "🍔" },
 ];
 
+const DIET_OPTIONS = [
+  { id: "veg", label: "Vegetarian", emoji: "🥬", desc: "Only vegetarian recipes" },
+  { id: "nonveg", label: "Non-Vegetarian", emoji: "🍗", desc: "Only non-vegetarian recipes" },
+  { id: "both", label: "Both", emoji: "🍽️", desc: "Show all recipes" },
+];
+
 export default function PreferencesPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
+  const [dietType, setDietType] = useState("both");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -34,12 +41,11 @@ export default function PreferencesPage() {
 
   useEffect(() => {
     if (session?.user) {
-      const prefs = (session.user as { preferences?: string | null }).preferences;
-      if (prefs) {
-        try {
-          setSelected(JSON.parse(prefs));
-        } catch {}
+      const user = session.user as { preferences?: string | null; dietType?: string };
+      if (user.preferences) {
+        try { setSelected(JSON.parse(user.preferences)); } catch {}
       }
+      if (user.dietType) setDietType(user.dietType);
     }
   }, [session]);
 
@@ -70,7 +76,7 @@ export default function PreferencesPage() {
       const res = await fetch("/api/preferences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preferences: selected }),
+        body: JSON.stringify({ preferences: selected, dietType }),
       });
 
       if (res.ok) {
@@ -99,11 +105,33 @@ export default function PreferencesPage() {
             </svg>
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Cuisine Preferences</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Preferences</h1>
             <p className="text-gray-500 text-sm">Update your preferences to get better recipe recommendations.</p>
           </div>
         </div>
 
+        {/* Diet Type */}
+        <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Diet Type</h3>
+        <div className="grid grid-cols-3 gap-3 mb-8">
+          {DIET_OPTIONS.map((option) => (
+            <button
+              key={option.id}
+              onClick={() => setDietType(option.id)}
+              className={`flex flex-col items-center gap-1 p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                dietType === option.id
+                  ? "border-orange-500 bg-orange-50 text-orange-700"
+                  : "border-gray-200 hover:border-gray-300 text-gray-700"
+              }`}
+            >
+              <span className="text-2xl">{option.emoji}</span>
+              <span className="font-medium text-sm">{option.label}</span>
+              <span className="text-xs text-gray-400">{option.desc}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Cuisines */}
+        <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Cuisine Preferences</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
           {CUISINE_OPTIONS.map((cuisine) => (
             <button

@@ -20,10 +20,17 @@ const CUISINE_OPTIONS = [
   { id: "american", label: "American", emoji: "🍔" },
 ];
 
+const DIET_OPTIONS = [
+  { id: "veg", label: "Vegetarian", emoji: "🥬", desc: "Only vegetarian recipes" },
+  { id: "nonveg", label: "Non-Vegetarian", emoji: "🍗", desc: "Only non-vegetarian recipes" },
+  { id: "both", label: "Both", emoji: "🍽️", desc: "Show all recipes" },
+];
+
 export default function OnboardingPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
+  const [dietType, setDietType] = useState("both");
   const [loading, setLoading] = useState(false);
 
   if (status === "loading") {
@@ -56,7 +63,7 @@ export default function OnboardingPage() {
       const res = await fetch("/api/preferences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preferences: selected }),
+        body: JSON.stringify({ preferences: selected, dietType }),
       });
 
       if (res.ok) {
@@ -79,10 +86,31 @@ export default function OnboardingPage() {
           Welcome, {session.user.name?.split(" ")[0]}!
         </h1>
         <p className="text-gray-600 mb-8">
-          Select your cuisine preferences so we can recommend the best recipes
-          for you.
+          Select your preferences so we can recommend the best recipes for you.
         </p>
 
+        {/* Diet Type */}
+        <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Diet Type</h3>
+        <div className="grid grid-cols-3 gap-3 mb-8">
+          {DIET_OPTIONS.map((option) => (
+            <button
+              key={option.id}
+              onClick={() => setDietType(option.id)}
+              className={`flex flex-col items-center gap-1 p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                dietType === option.id
+                  ? "border-orange-500 bg-orange-50 text-orange-700"
+                  : "border-gray-200 hover:border-gray-300 text-gray-700"
+              }`}
+            >
+              <span className="text-2xl">{option.emoji}</span>
+              <span className="font-medium text-sm">{option.label}</span>
+              <span className="text-xs text-gray-400">{option.desc}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Cuisines */}
+        <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Cuisine Preferences</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
           {CUISINE_OPTIONS.map((cuisine) => (
             <button

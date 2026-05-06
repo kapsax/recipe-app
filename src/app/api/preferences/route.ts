@@ -9,13 +9,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { preferences } = await request.json();
+  const { preferences, dietType } = await request.json();
   const userId = (session.user as { id: string }).id;
 
   await prisma.user.update({
     where: { id: userId },
     data: {
       preferences: JSON.stringify(preferences),
+      dietType: dietType || "both",
       onboarded: true,
     },
   });
