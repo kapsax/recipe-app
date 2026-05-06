@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String?
+  email         String?        @unique
+  emailVerified DateTime?
+  image         String?
+  preferences   String?
+  onboarded     Boolean        @default(false)
+  accounts      Account[]
+  sessions      Session[]
+  recipes       Recipe[]
+  planner       MealPlanner[]
+  shoppingItems ShoppingItem[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Recipe {
+  id               String        @id @default(cuid())
+  userId           String
+  title            String
+  titleHindi       String?
+  description      String
+  descriptionHindi String?
+  time             String
+  calories         Int
+  isVeg            Boolean
+  ingredients      String
+  steps            String
+  stepsHindi       String?
+  missingItems     String?
+  allergies        String?
+  imageUrl         String?
+  aiImageUrl       String?
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planner          MealPlanner[]
+  createdAt        DateTime      @default(now())
+}
+
+model MealPlanner {
+  id       String @id @default(cuid())
+  userId   String
+  recipeId String
+  day      String
+  mealType String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, day, mealType])
+}
+
+model ShoppingItem {
+  id       String  @id @default(cuid())
+  userId   String
+  name     String
+  recipeId String?
+  checked  Boolean @default(false)
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
