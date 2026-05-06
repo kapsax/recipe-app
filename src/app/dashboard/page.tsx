@@ -141,28 +141,53 @@ export default function DashboardPage() {
 
   if (!session) return null;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const newPreviews: string[] = [];
-    let loaded = 0;
-
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith("image/")) {
-        toast.error(`${file.name} is not an image file`);
-        return;
-      }
+  const compressImage = (file: File, maxDim = 1024, quality = 0.7): Promise<string> => {
+    return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onload = (ev) => {
-        newPreviews.push(ev.target?.result as string);
-        loaded++;
-        if (loaded === files.length) {
-          setPreviews((prev) => [...prev, ...newPreviews]);
-        }
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = (height / width) * maxDim;
+              width = maxDim;
+            } else {
+              width = (width / height) * maxDim;
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d")!;
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.src = e.target?.result as string;
       };
       reader.readAsDataURL(file);
     });
+  };
+
+  const processFiles = async (files: FileList | File[]) => {
+    const validFiles = Array.from(files).filter((f) => {
+      if (!f.type.startsWith("image/")) {
+        toast.error(`${f.name} is not an image file`);
+        return false;
+      }
+      return true;
+    });
+    if (validFiles.length === 0) return;
+    const compressed = await Promise.all(validFiles.map((f) => compressImage(f)));
+    setPreviews((prev) => [...prev, ...compressed]);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    processFiles(files);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const removePreview = (index: number) => {
@@ -467,19 +492,41 @@ export default function DashboardPage() {
                             </button>
                           </div>
                         ))}
+                      </div>
+                      <div className="flex gap-2 justify-center mt-4">
+                        <button
+                          onClick={() => {
+                            const input = document.createElement("input");
+                            input.type = "file";
+                            input.accept = "image/*";
+                            input.capture = "environment";
+                            input.onchange = (e) => {
+                              const files = (e.target as HTMLInputElement).files;
+                              if (files) processFiles(files);
+                            };
+                            input.click();
+                          }}
+                          className="flex items-center gap-1.5 text-sm text-orange-600 border border-orange-300 px-3 py-2 rounded-lg hover:bg-orange-50 cursor-pointer transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          </svg>
+                          Take Photo
+                        </button>
                         <button
                           onClick={() => fileInputRef.current?.click()}
-                          className="h-24 w-24 sm:h-32 sm:w-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 hover:border-orange-400 hover:text-orange-400 cursor-pointer transition-colors"
+                          className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
                         >
-                          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                           </svg>
+                          Add More
                         </button>
                       </div>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {/* Take Photo button - works on mobile, opens camera */}
+                      {/* Take Photo button - opens camera on mobile */}
                       <button
                         onClick={() => {
                           const input = document.createElement("input");
@@ -487,12 +534,8 @@ export default function DashboardPage() {
                           input.accept = "image/*";
                           input.capture = "environment";
                           input.onchange = (e) => {
-                            const file = (e.target as HTMLInputElement).files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (ev) => setPreviews((prev) => [...prev, ev.target?.result as string]);
-                              reader.readAsDataURL(file);
-                            }
+                            const files = (e.target as HTMLInputElement).files;
+                            if (files) processFiles(files);
                           };
                           input.click();
                         }}
