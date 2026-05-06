@@ -50,10 +50,13 @@ export default function RecipeDetail({
   const missingItems = recipe.missingItems ? (JSON.parse(recipe.missingItems) as string[]) : [];
   const allergies = recipe.allergies ? (JSON.parse(recipe.allergies) as string[]) : [];
 
+  const [imgError, setImgError] = useState(false);
+
   const displayTitle = lang === "hi" && recipe.titleHindi ? recipe.titleHindi : recipe.title;
   const displayDesc = lang === "hi" && recipe.descriptionHindi ? recipe.descriptionHindi : recipe.description;
   const displaySteps = lang === "hi" && stepsHindi.length > 0 ? stepsHindi : steps;
-  const imageUrl = recipe.aiImageUrl || recipe.imageUrl;
+  const rawImageUrl = recipe.aiImageUrl || recipe.imageUrl;
+  const imageUrl = rawImageUrl && !imgError ? rawImageUrl : null;
 
   const handleShare = async () => {
     if (!shareEmail) { toast.error("Enter an email"); return; }
@@ -64,10 +67,18 @@ export default function RecipeDetail({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recipeId: recipe.id, email: shareEmail }),
       });
+      const data = await res.json();
       if (res.ok) {
-        toast.success(`Shared with ${shareEmail}`);
+        if (data.fallback && data.mailto) {
+          window.open(data.mailto, "_blank");
+          toast.success("Opening email client...");
+        } else {
+          toast.success(`Recipe shared with ${shareEmail}!`);
+        }
         setShareEmail("");
         setShowShare(false);
+      } else {
+        toast.error(data.error || "Failed to share");
       }
     } catch { toast.error("Failed to share"); }
     finally { setSharing(false); }
@@ -136,7 +147,7 @@ export default function RecipeDetail({
         {/* Hero Image */}
         {imageUrl && (
           <div className="relative rounded-2xl overflow-hidden mb-8 shadow-lg">
-            <img src={imageUrl} alt={recipe.title} className="w-full h-72 md:h-96 object-cover" />
+            <img src={imageUrl} alt={recipe.title} className="w-full h-72 md:h-96 object-cover" onError={() => setImgError(true)} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
             <div className="absolute bottom-6 left-6 right-6">
               <span className={`inline-block text-xs font-bold px-3 py-1 rounded-full mb-3 ${recipe.isVeg ? "bg-green-500 text-white" : "bg-red-500 text-white"}`}>

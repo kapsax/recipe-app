@@ -760,7 +760,8 @@ export default function DashboardPage() {
 
 function RecipeImageSmall({ recipe }: { recipe: Recipe }) {
   const imageUrl = recipe.aiImageUrl || recipe.imageUrl;
-  if (!imageUrl) {
+  const [error, setError] = useState(false);
+  if (!imageUrl || error) {
     return (
       <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
         <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -769,23 +770,26 @@ function RecipeImageSmall({ recipe }: { recipe: Recipe }) {
       </div>
     );
   }
-  return <img src={imageUrl} alt="" className="w-12 h-12 object-cover rounded-lg shrink-0" />;
+  return <img src={imageUrl} alt="" className="w-12 h-12 object-cover rounded-lg shrink-0" onError={() => setError(true)} />;
 }
 
 function RecipeCardThumbnail({ recipe, onClick }: { recipe: Recipe; onClick: () => void }) {
   const imageUrl = recipe.aiImageUrl || recipe.imageUrl;
+  const [imgError, setImgError] = useState(false);
+  const showImage = imageUrl && !imgError;
 
   return (
     <div
       onClick={onClick}
       className="bg-white rounded-xl border border-gray-200 overflow-hidden cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all duration-200"
     >
-      {imageUrl ? (
+      {showImage ? (
         <div className="relative h-48 w-full">
           <img
             src={imageUrl}
             alt={recipe.title}
             className="w-full h-full object-cover"
+            onError={() => setImgError(true)}
           />
           <div className="absolute top-3 right-3">
             <span className={`text-xs font-bold px-2 py-1 rounded-full ${recipe.isVeg ? "bg-green-500 text-white" : "bg-red-500 text-white"}`}>
