@@ -210,6 +210,11 @@ export default function DashboardPage() {
     if (!res.ok || data.error) {
       throw new Error(data.error || "Failed to generate recipes");
     }
+    if (!data.recipes || !Array.isArray(data.recipes)) {
+      throw new Error("Invalid response from server");
+    }
+    // Ensure all recipes have required fields
+    data.recipes = data.recipes.filter((r: Recipe) => r && r.title && r.description);
     return data;
   };
 
@@ -896,13 +901,13 @@ function RecipeCardThumbnail({ recipe, onClick }: { recipe: Recipe; onClick: () 
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            {recipe.time}
+            {recipe.time || "N/A"}
           </span>
           <span className="flex items-center gap-1">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
             </svg>
-            {recipe.calories} kcal
+            {recipe.calories || 0} kcal
           </span>
         </div>
       </div>

@@ -44,8 +44,8 @@ export default function RecipeDetail({
   const [showShare, setShowShare] = useState(false);
   const [sharing, setSharing] = useState(false);
 
-  const ingredients = JSON.parse(recipe.ingredients) as string[];
-  const steps = JSON.parse(recipe.steps) as string[];
+  const ingredients = recipe.ingredients ? (JSON.parse(recipe.ingredients) as string[]) : [];
+  const steps = recipe.steps ? (JSON.parse(recipe.steps) as string[]) : [];
   const stepsHindi = recipe.stepsHindi ? (JSON.parse(recipe.stepsHindi) as string[]) : [];
   const missingItems = recipe.missingItems ? (JSON.parse(recipe.missingItems) as string[]) : [];
   const allergies = recipe.allergies ? (JSON.parse(recipe.allergies) as string[]) : [];
