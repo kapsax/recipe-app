@@ -106,36 +106,35 @@ export default function RecipeDetail({
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-40">
+      <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 sticky top-0 z-40">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <button
             onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 text-gray-600 hover:text-gray-900 cursor-pointer transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            <span className="font-medium">Back</span>
+            <span className="font-medium text-sm sm:text-base">Back</span>
           </button>
-          <div className="flex items-center gap-2">
-            {/* Language toggle */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
               <button
                 onClick={() => setLang("en")}
-                className={`text-xs px-3 py-1.5 rounded-md cursor-pointer transition-colors ${lang === "en" ? "bg-white shadow-sm font-semibold text-gray-900" : "text-gray-500"}`}
+                className={`text-xs px-2 sm:px-3 py-1.5 rounded-md cursor-pointer transition-colors ${lang === "en" ? "bg-white shadow-sm font-semibold text-gray-900" : "text-gray-500"}`}
               >
-                English
+                EN
               </button>
               <button
                 onClick={() => setLang("hi")}
-                className={`text-xs px-3 py-1.5 rounded-md cursor-pointer transition-colors ${lang === "hi" ? "bg-white shadow-sm font-semibold text-gray-900" : "text-gray-500"}`}
+                className={`text-xs px-2 sm:px-3 py-1.5 rounded-md cursor-pointer transition-colors ${lang === "hi" ? "bg-white shadow-sm font-semibold text-gray-900" : "text-gray-500"}`}
               >
-                Hindi
+                HI
               </button>
             </div>
             <button
               onClick={onBackToRecommendations}
-              className="text-sm text-orange-600 hover:text-orange-700 font-medium cursor-pointer"
+              className="text-xs sm:text-sm text-orange-600 hover:text-orange-700 font-medium cursor-pointer"
             >
               All Recipes
             </button>
@@ -143,7 +142,7 @@ export default function RecipeDetail({
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {/* Hero Image */}
         {imageUrl && (
           <div className="relative rounded-2xl overflow-hidden mb-8 shadow-lg">
@@ -249,7 +248,7 @@ export default function RecipeDetail({
         {/* Missing Items */}
         {missingItems.length > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 mb-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <h3 className="text-lg font-semibold text-amber-800 flex items-center gap-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -258,7 +257,7 @@ export default function RecipeDetail({
               </h3>
               <button
                 onClick={() => onAddToShopping(missingItems, recipe.id)}
-                className="flex items-center gap-1 bg-amber-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-amber-700 cursor-pointer transition-colors"
+                className="flex items-center gap-1 bg-amber-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-amber-700 cursor-pointer transition-colors w-fit"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -331,9 +330,29 @@ export default function RecipeDetail({
 
           {/* Planner Selector */}
           {showPlanner && (
-            <div className="mt-4 bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <div className="mt-4 bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200">
               <p className="text-sm font-medium text-gray-700 mb-3">Select day and meal:</p>
-              <div className="grid grid-cols-7 gap-2">
+              {/* Mobile: list layout */}
+              <div className="sm:hidden space-y-2">
+                {DAYS.map((day) => (
+                  <div key={day} className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-gray-500 w-10">{day.slice(0, 3)}</span>
+                    <div className="flex gap-1.5 flex-1">
+                      {MEAL_TYPES.map((meal) => (
+                        <button
+                          key={meal}
+                          onClick={() => handleAddToPlanner(day, meal)}
+                          className="flex-1 text-xs bg-white border border-gray-200 rounded-lg px-2 py-2 text-gray-600 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 cursor-pointer transition-colors"
+                        >
+                          {meal}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Desktop: grid layout */}
+              <div className="hidden sm:grid grid-cols-7 gap-2">
                 {DAYS.map((day) => (
                   <div key={day} className="space-y-1">
                     <p className="text-xs font-medium text-gray-500 text-center">{day.slice(0, 3)}</p>
@@ -349,24 +368,24 @@ export default function RecipeDetail({
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-gray-400 mt-2">B = Breakfast, L = Lunch, D = Dinner</p>
+              <p className="text-xs text-gray-400 mt-2 hidden sm:block">B = Breakfast, L = Lunch, D = Dinner</p>
             </div>
           )}
 
           {/* Share */}
           {showShare && (
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex flex-col sm:flex-row gap-2">
               <input
                 type="email"
                 placeholder="Enter email address..."
                 value={shareEmail}
                 onChange={(e) => setShareEmail(e.target.value)}
-                className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                className="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
               />
               <button
                 onClick={handleShare}
                 disabled={sharing}
-                className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 disabled:opacity-50 cursor-pointer"
+                className="bg-blue-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 disabled:opacity-50 cursor-pointer"
               >
                 {sharing ? "Sending..." : "Send"}
               </button>

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -11,6 +11,12 @@ const geistSans = Geist({
 export const metadata: Metadata = {
   title: "RecipeAI - Smart Recipe Recommendations",
   description: "Upload food photos and get personalized recipe recommendations",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({
