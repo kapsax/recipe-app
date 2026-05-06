@@ -1,7 +1,6 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
 export const maxDuration = 60;
@@ -12,7 +11,7 @@ export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const userId = (session.user as { id: string }).id;
@@ -21,17 +20,16 @@ export async function POST(request: Request) {
       select: { preferences: true, dietType: true },
     });
 
-    const { image, images, excludeTitles, uploadBatchId: existingBatchId } = await request.json();
+    const { images, image, excludeTitles, uploadBatchId: existingBatchId } = await request.json();
     const preferences = user?.preferences ? JSON.parse(user.preferences) : [];
     const dietType = user?.dietType || "both";
 
-    // Support both single image and multiple images
     const imageList: string[] = images || (image ? [image] : []);
     if (imageList.length === 0) {
-      return NextResponse.json({ error: "No images provided" }, { status: 400 });
+      return Response.json({ error: "No images provided" }, { status: 400 });
     }
 
-    // Build image content blocks
+    // Build image content blocks - strip data URI prefix for API
     const imageBlocks = imageList.map((img: string) => {
       const base64Data = img.replace(/^data:image\/\w+;base64,/, "");
       const mediaType = img.match(/^data:(image\/\w+);base64,/)?.[1] || "image/jpeg";
@@ -45,7 +43,6 @@ export async function POST(request: Request) {
       };
     });
 
-    // Diet type instruction
     let dietInstruction = "";
     if (dietType === "veg") {
       dietInstruction = "\nIMPORTANT: Only suggest VEGETARIAN recipes. No meat, fish, or eggs.";
@@ -53,7 +50,6 @@ export async function POST(request: Request) {
       dietInstruction = "\nIMPORTANT: Only suggest NON-VEGETARIAN recipes that include meat, fish, or eggs.";
     }
 
-    // Exclude already generated recipes
     let excludeInstruction = "";
     if (excludeTitles && excludeTitles.length > 0) {
       excludeInstruction = `\nIMPORTANT: Do NOT suggest these recipes that were already generated: ${excludeTitles.join(", ")}. Suggest completely different recipes.`;
@@ -63,7 +59,8 @@ export async function POST(request: Request) {
       ? `You are looking at ${imageList.length} images of food items/ingredients. Consider ALL items across ALL images when suggesting recipes. The recipes should use a combination of ingredients from different images.`
       : "Analyze this food image carefully. Identify ALL the food items/ingredients visible in the image.";
 
-    const response = await anthropic.messages.create({
+    // Use streaming to avoid Vercel timeout
+    const stream = anthropic.messages.stream({
       model: "claude-sonnet-4-20250514",
       max_tokens: 8000,
       messages: [
@@ -114,12 +111,12 @@ IMPORTANT RULES:
       ],
     });
 
-    const textContent = response.content.find((c) => c.type === "text");
+    // Collect the full streamed response
+    const finalMessage = await stream.finalMessage();
+
+    const textContent = finalMessage.content.find((c) => c.type === "text");
     if (!textContent || textContent.type !== "text") {
-      return NextResponse.json(
-        { error: "No response from AI" },
-        { status: 500 }
-      );
+      return Response.json({ error: "No response from AI" }, { status: 500 });
     }
 
     let recipes;
@@ -143,14 +140,14 @@ IMPORTANT RULES:
             recipes = JSON.parse(fixedJson);
           } catch {
             console.error("Failed to parse even after fix attempt:", textContent.text.slice(0, 500));
-            return NextResponse.json(
+            return Response.json(
               { error: "Failed to parse recipe suggestions. Please try again." },
               { status: 500 }
             );
           }
         }
       } else {
-        return NextResponse.json(
+        return Response.json(
           { error: "Failed to parse recipe suggestions" },
           { status: 500 }
         );
@@ -176,9 +173,6 @@ IMPORTANT RULES:
       return { ...recipe, aiImageUrl };
     });
 
-    // Store the first image as the representative upload image
-    const uploadImage = imageList[0];
-
     const savedRecipes = await Promise.all(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       recipesWithImages.map((recipe: any) =>
@@ -203,7 +197,7 @@ IMPORTANT RULES:
             allergies: recipe.allergies?.length
               ? JSON.stringify(recipe.allergies)
               : null,
-            imageUrl: uploadImage,
+            imageUrl: null,
             aiImageUrl: recipe.aiImageUrl || null,
             uploadBatchId,
           },
@@ -211,11 +205,12 @@ IMPORTANT RULES:
       )
     );
 
-    return NextResponse.json({ recipes: savedRecipes, uploadBatchId });
+    return Response.json({ recipes: savedRecipes, uploadBatchId });
   } catch (error) {
     console.error("Recipe generation error:", error);
-    return NextResponse.json(
-      { error: "Failed to generate recipes. Please try again." },
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return Response.json(
+      { error: `Failed to generate recipes: ${message}` },
       { status: 500 }
     );
   }
