@@ -25,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} h-full`}>
+    <html lang="en" className={`${geistSans.variable} h-full`} style={{ colorScheme: "light" }}>
       <body className="min-h-full flex flex-col font-[family-name:var(--font-geist-sans)]">
         <Providers>{children}</Providers>
       </body>
