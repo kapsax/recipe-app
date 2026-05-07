@@ -56,10 +56,17 @@ export default function RecipeDetail({
   const displayDesc = lang === "hi" && recipe.descriptionHindi ? recipe.descriptionHindi : recipe.description;
   const displaySteps = lang === "hi" && stepsHindi.length > 0 ? stepsHindi : steps;
 
+  const FALLBACK_PHOTOS = [
+    "photo-1546069901-ba9599a7e63c", "photo-1567620905732-2d1ec7ab7445",
+    "photo-1565299624946-b28f40a0ae38", "photo-1540189549336-e6e99c3679fe",
+    "photo-1512621776951-a57141f2eefd", "photo-1482049016688-2d3e1b311543",
+    "photo-1504674900247-0877df9cc836", "photo-1493770348161-369560ae357d",
+    "photo-1476224203421-9ac39bcb3327", "photo-1455619452474-d2be8b1e70cd",
+  ];
   const getFallbackUrl = (suffix = "") => {
-    const keywords = recipe.title.toLowerCase().replace(/[^a-z\s]/g, "").split(" ").filter((w) => w.length > 3).slice(0, 2).join(" ");
-    const query = encodeURIComponent(keywords ? `${keywords} food` : "food cooking recipe");
-    return `https://source.unsplash.com/800x500/?${query}&sig=${recipe.id}${suffix}`;
+    const hash = (recipe.title + recipe.id + suffix).split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+    const photoId = FALLBACK_PHOTOS[hash % FALLBACK_PHOTOS.length];
+    return `https://images.unsplash.com/${photoId}?w=800&h=500&fit=crop&auto=format`;
   };
 
   const primaryUrl = recipe.aiImageUrl || recipe.imageUrl || getFallbackUrl();
