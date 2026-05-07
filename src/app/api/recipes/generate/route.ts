@@ -17,12 +17,13 @@ export async function POST(request: Request) {
     const userId = (session.user as { id: string }).id;
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { preferences: true, dietType: true },
+      select: { preferences: true, dietType: true, onDiet: true },
     });
 
     const { images, image, excludeTitles, uploadBatchId: existingBatchId } = await request.json();
     const preferences = user?.preferences ? JSON.parse(user.preferences) : [];
     const dietType = user?.dietType || "both";
+    const onDiet = user?.onDiet ?? false;
 
     const imageList: string[] = images || (image ? [image] : []);
     if (imageList.length === 0) {
@@ -46,6 +47,10 @@ export async function POST(request: Request) {
       excludeInstruction = ` Do NOT suggest: ${excludeTitles.join(", ")}.`;
     }
 
+    const dietModeInstruction = onDiet
+      ? " The user is on a diet. Prioritize LOW-CALORIE, healthy, light recipes. Prefer grilled, steamed, baked over fried. Keep calories under 400 per serving where possible."
+      : "";
+
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 4000,
@@ -64,7 +69,7 @@ export async function POST(request: Request) {
             {
               type: "text",
               text: `Identify the food items in this image. Suggest 3 authentic recipes using these ingredients.
-User prefers: ${preferences.join(", ") || "any"}.${dietInstruction}${excludeInstruction}
+User prefers: ${preferences.join(", ") || "any"}.${dietInstruction}${dietModeInstruction}${excludeInstruction}
 
 Return ONLY valid JSON array (no markdown):
 [{

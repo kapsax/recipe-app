@@ -17,7 +17,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as { id: string }).id = user.id;
         const dbUser = await prisma.user.findUnique({
           where: { id: user.id },
-          select: { onboarded: true, preferences: true, dietType: true },
+          select: { onboarded: true, preferences: true, dietType: true, onDiet: true },
         });
         (session.user as { onboarded: boolean }).onboarded =
           dbUser?.onboarded ?? false;
@@ -25,6 +25,8 @@ export const authOptions: NextAuthOptions = {
           dbUser?.preferences ?? null;
         (session.user as unknown as { dietType: string }).dietType =
           dbUser?.dietType ?? "both";
+        (session.user as unknown as { onDiet: boolean }).onDiet =
+          dbUser?.onDiet ?? false;
       }
       return session;
     },

@@ -15,6 +15,7 @@ model User {
   image         String?
   preferences   String?
   dietType      String         @default("both")
+  onDiet        Boolean        @default(false)
   onboarded     Boolean        @default(false)
   accounts      Account[]
   sessions      Session[]

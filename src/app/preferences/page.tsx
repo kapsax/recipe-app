@@ -31,6 +31,7 @@ export default function PreferencesPage() {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
   const [dietType, setDietType] = useState("both");
+  const [onDiet, setOnDiet] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -41,11 +42,12 @@ export default function PreferencesPage() {
 
   useEffect(() => {
     if (session?.user) {
-      const user = session.user as { preferences?: string | null; dietType?: string };
+      const user = session.user as { preferences?: string | null; dietType?: string; onDiet?: boolean };
       if (user.preferences) {
         try { setSelected(JSON.parse(user.preferences)); } catch {}
       }
       if (user.dietType) setDietType(user.dietType);
+      if (user.onDiet) setOnDiet(user.onDiet);
     }
   }, [session]);
 
@@ -76,7 +78,7 @@ export default function PreferencesPage() {
       const res = await fetch("/api/preferences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preferences: selected, dietType }),
+        body: JSON.stringify({ preferences: selected, dietType, onDiet }),
       });
 
       if (res.ok) {
@@ -128,6 +130,23 @@ export default function PreferencesPage() {
               <span className="text-xs text-gray-400">{option.desc}</span>
             </button>
           ))}
+        </div>
+
+        {/* Diet Mode Toggle */}
+        <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4 mb-8">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🥗</span>
+            <div>
+              <p className="font-semibold text-gray-900 text-sm">I am on a diet</p>
+              <p className="text-xs text-gray-500">Suggest low-calorie, healthier recipe options</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setOnDiet(!onDiet)}
+            className={`relative w-12 h-7 rounded-full transition-colors cursor-pointer ${onDiet ? "bg-green-500" : "bg-gray-300"}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${onDiet ? "translate-x-5" : "translate-x-0"}`} />
+          </button>
         </div>
 
         {/* Cuisines */}

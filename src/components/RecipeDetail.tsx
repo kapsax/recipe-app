@@ -64,7 +64,8 @@ export default function RecipeDetail({
 
   const primaryUrl = recipe.aiImageUrl || recipe.imageUrl || getFallbackUrl();
   const [heroSrc, setHeroSrc] = useState(primaryUrl);
-  const [heroRetried, setHeroRetried] = useState(false);
+  const [heroAttempts, setHeroAttempts] = useState(0);
+  const [heroFailed, setHeroFailed] = useState(false);
 
   const handleShare = async () => {
     if (!shareEmail) { toast.error("Enter an email"); return; }
@@ -153,23 +154,34 @@ export default function RecipeDetail({
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {/* Hero Image */}
         <div className="relative rounded-2xl overflow-hidden mb-8 shadow-lg bg-gray-100">
-          <img
-            src={heroSrc}
-            alt={recipe.title}
-            className="w-full h-72 md:h-96 object-cover"
-            onError={() => {
-              if (!heroRetried) {
-                setHeroRetried(true);
-                setHeroSrc(getFallbackUrl("_retry"));
-              }
-            }}
-          />
+          {!heroFailed ? (
+            <img
+              src={heroSrc}
+              alt={recipe.title}
+              className="w-full h-72 md:h-96 object-cover"
+              onError={() => {
+                if (heroAttempts < 2) {
+                  setHeroAttempts((a) => a + 1);
+                  setHeroSrc(getFallbackUrl(`_r${heroAttempts + 1}`));
+                } else {
+                  setHeroFailed(true);
+                }
+              }}
+            />
+          ) : (
+            <div className="w-full h-48 flex flex-col items-center justify-center">
+              <svg className="w-16 h-16 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <p className="text-gray-400 font-medium">Image not available</p>
+            </div>
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
           <div className="absolute bottom-6 left-6 right-6">
             <span className={`inline-block text-xs font-bold px-3 py-1 rounded-full mb-3 ${recipe.isVeg ? "bg-green-500 text-white" : "bg-red-500 text-white"}`}>
               {recipe.isVeg ? "VEGETARIAN" : "NON-VEGETARIAN"}
             </span>
-            <h1 className="text-3xl md:text-4xl font-bold text-white">{displayTitle}</h1>
+            <h1 className={`text-3xl md:text-4xl font-bold ${heroFailed ? "text-gray-900" : "text-white"}`}>{displayTitle}</h1>
           </div>
         </div>
 
