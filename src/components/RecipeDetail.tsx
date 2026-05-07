@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import toast from "react-hot-toast";
+import RecipeChat from "./RecipeChat";
 
 interface Recipe {
   id: string;
@@ -43,6 +44,7 @@ export default function RecipeDetail({
   const [shareEmail, setShareEmail] = useState("");
   const [showShare, setShowShare] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const ingredients = recipe.ingredients ? (JSON.parse(recipe.ingredients) as string[]) : [];
   const steps = recipe.steps ? (JSON.parse(recipe.steps) as string[]) : [];
@@ -393,6 +395,27 @@ export default function RecipeDetail({
           )}
         </div>
       </div>
+
+      {/* Floating Chat Button */}
+      {!chatOpen && (
+        <button
+          onClick={() => setChatOpen(true)}
+          className="fixed bottom-6 right-6 bg-gradient-to-r from-orange-500 to-red-500 text-white px-5 py-3.5 rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer flex items-center gap-2 z-40 group"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+          </svg>
+          <span className="font-semibold text-sm">Ask Chef AI</span>
+        </button>
+      )}
+
+      {/* Chat Panel */}
+      <RecipeChat
+        recipeId={recipe.id}
+        recipeTitle={recipe.title}
+        isOpen={chatOpen}
+        onClose={() => setChatOpen(false)}
+      />
     </div>
   );
 }

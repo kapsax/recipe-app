@@ -71,7 +71,18 @@ model Recipe {
   uploadBatchId    String?
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   planner          MealPlanner[]
+  chatMessages     ChatMessage[]
   createdAt        DateTime      @default(now())
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  recipeId  String
+  role      String
+  content   String
+  imageUrl  String?
+  recipe    Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 }
 
 model MealPlanner {
