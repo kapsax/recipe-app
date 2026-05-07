@@ -9,7 +9,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "RecipeAI - Smart Recipe Recommendations",
+  title: "CookBook - Smart Recipe Recommendations",
   description: "Upload food photos and get personalized recipe recommendations",
 };
 

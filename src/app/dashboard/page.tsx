@@ -371,42 +371,74 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-1 flex-col bg-gray-50 min-h-screen">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
+      <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-2.5 sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-2">
+          {/* Logo - Left */}
+          <div className="flex items-center gap-2 shrink-0">
             <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
               <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
             </div>
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900">RecipeAI</h1>
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900">CookBook</h1>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
+
+          {/* Navigation Tabs - Center */}
+          <nav className="flex-1 flex justify-center overflow-x-auto">
+            <div className="flex gap-1 bg-gray-100 rounded-lg p-1 min-w-fit">
+              {[
+                { id: "recipes" as const, label: "Recipes", action: () => {} },
+                { id: "planner" as const, label: "Planner", action: loadPlanner },
+                { id: "shopping" as const, label: "Cart", action: loadShopping },
+                { id: "history" as const, label: "History", action: loadHistory },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => { setActiveTab(tab.id); tab.action(); }}
+                  className={`px-3 sm:px-4 py-1.5 rounded-md text-xs sm:text-sm font-medium cursor-pointer transition-colors whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  {tab.label}
+                  {tab.id === "shopping" && shopping.filter((s) => !s.checked).length > 0 && (
+                    <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                      {shopping.filter((s) => !s.checked).length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </nav>
+
+          {/* Profile + Actions - Right */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {(activeTab === "recipes" && recipes.length > 0) && (
               <button
                 onClick={startNewUpload}
-                className="flex items-center gap-1.5 sm:gap-2 bg-orange-500 text-white text-xs sm:text-sm font-medium px-3 sm:px-4 py-2 rounded-lg hover:bg-orange-600 cursor-pointer transition-colors"
+                className="flex items-center gap-1.5 bg-orange-500 text-white text-xs sm:text-sm font-medium px-3 sm:px-4 py-2 rounded-lg hover:bg-orange-600 cursor-pointer transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                <span className="hidden sm:inline">New Photo</span>
-                <span className="sm:hidden">New</span>
+                <span className="hidden sm:inline">Suggest Recipes</span>
+                <span className="sm:hidden">Suggest</span>
               </button>
             )}
             <div className="relative">
               <button
                 onClick={() => setShowProfileMenu((prev) => !prev)}
-                className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity"
               >
                 {session.user.image ? (
-                  <img src={session.user.image} alt="" className="w-8 h-8 rounded-full border border-gray-200" />
+                  <img src={session.user.image} alt="" className="w-8 h-8 rounded-full border-2 border-gray-200" />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white text-sm font-bold">
                     {session.user.name?.[0] || session.user.email?.[0] || "U"}
                   </div>
                 )}
-                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 text-gray-400 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
@@ -444,35 +476,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </header>
-
-      {/* Tabs */}
-      <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 pt-4 sm:pt-6 overflow-x-auto">
-        <div className="flex gap-1 bg-gray-200 rounded-lg p-1 w-fit min-w-fit">
-          {[
-            { id: "recipes" as const, label: "Recipes", action: () => {} },
-            { id: "planner" as const, label: "Weekly Planner", action: loadPlanner },
-            { id: "shopping" as const, label: "Shopping Cart", action: loadShopping },
-            { id: "history" as const, label: "History", action: loadHistory },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => { setActiveTab(tab.id); tab.action(); }}
-              className={`px-4 py-2 rounded-md text-sm font-medium cursor-pointer transition-colors ${
-                activeTab === tab.id
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              {tab.label}
-              {tab.id === "shopping" && shopping.filter((s) => !s.checked).length > 0 && (
-                <span className="ml-1.5 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">
-                  {shopping.filter((s) => !s.checked).length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* Content */}
       <main className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6 flex-1">
@@ -610,7 +613,7 @@ export default function DashboardPage() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    Try another photo
+                    Suggest Recipes
                   </button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
