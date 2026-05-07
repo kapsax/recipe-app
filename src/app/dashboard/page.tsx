@@ -841,58 +841,58 @@ export default function DashboardPage() {
   );
 }
 
+function getFallbackImageUrl(title: string, id: string): string {
+  const keywords = title.toLowerCase().replace(/[^a-z\s]/g, "").split(" ").filter((w) => w.length > 3).slice(0, 2).join(" ");
+  const query = encodeURIComponent(keywords ? `${keywords} food` : "food cooking recipe");
+  return `https://source.unsplash.com/600x400/?${query}&sig=${id}`;
+}
+
 function RecipeImageSmall({ recipe }: { recipe: Recipe }) {
-  const imageUrl = recipe.aiImageUrl || recipe.imageUrl;
-  const [error, setError] = useState(false);
-  if (!imageUrl || error) {
-    return (
-      <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
-        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      </div>
-    );
-  }
-  return <img src={imageUrl} alt="" className="w-12 h-12 object-cover rounded-lg shrink-0" onError={() => setError(true)} />;
+  const [src, setSrc] = useState(recipe.aiImageUrl || recipe.imageUrl || getFallbackImageUrl(recipe.title, recipe.id));
+  const [retried, setRetried] = useState(false);
+  return (
+    <img
+      src={src}
+      alt=""
+      className="w-12 h-12 object-cover rounded-lg shrink-0 bg-gray-100"
+      onError={() => {
+        if (!retried) {
+          setRetried(true);
+          setSrc(getFallbackImageUrl(recipe.title, recipe.id + "_retry"));
+        }
+      }}
+    />
+  );
 }
 
 function RecipeCardThumbnail({ recipe, onClick }: { recipe: Recipe; onClick: () => void }) {
-  const imageUrl = recipe.aiImageUrl || recipe.imageUrl;
-  const [imgError, setImgError] = useState(false);
-  const showImage = imageUrl && !imgError;
+  const primaryUrl = recipe.aiImageUrl || recipe.imageUrl;
+  const [src, setSrc] = useState(primaryUrl || getFallbackImageUrl(recipe.title, recipe.id));
+  const [retried, setRetried] = useState(false);
 
   return (
     <div
       onClick={onClick}
       className="bg-white rounded-xl border border-gray-200 overflow-hidden cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all duration-200"
     >
-      {showImage ? (
-        <div className="relative h-48 w-full">
-          <img
-            src={imageUrl}
-            alt={recipe.title}
-            className="w-full h-full object-cover"
-            onError={() => setImgError(true)}
-          />
-          <div className="absolute top-3 right-3">
-            <span className={`text-xs font-bold px-2 py-1 rounded-full ${recipe.isVeg ? "bg-green-500 text-white" : "bg-red-500 text-white"}`}>
-              {recipe.isVeg ? "VEG" : "NON-VEG"}
-            </span>
-          </div>
+      <div className="relative h-48 w-full bg-gray-100">
+        <img
+          src={src}
+          alt={recipe.title}
+          className="w-full h-full object-cover"
+          onError={() => {
+            if (!retried) {
+              setRetried(true);
+              setSrc(getFallbackImageUrl(recipe.title, recipe.id + "_retry"));
+            }
+          }}
+        />
+        <div className="absolute top-3 right-3">
+          <span className={`text-xs font-bold px-2 py-1 rounded-full ${recipe.isVeg ? "bg-green-500 text-white" : "bg-red-500 text-white"}`}>
+            {recipe.isVeg ? "VEG" : "NON-VEG"}
+          </span>
         </div>
-      ) : (
-        <div className="relative h-48 w-full bg-gray-100 flex flex-col items-center justify-center">
-          <svg className="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <p className="text-sm text-gray-400 font-medium">Image not available</p>
-          <div className="absolute top-3 right-3">
-            <span className={`text-xs font-bold px-2 py-1 rounded-full ${recipe.isVeg ? "bg-green-500 text-white" : "bg-red-500 text-white"}`}>
-              {recipe.isVeg ? "VEG" : "NON-VEG"}
-            </span>
-          </div>
-        </div>
-      )}
+      </div>
       <div className="p-4">
         <h3 className="font-semibold text-gray-900 mb-1">{recipe.title}</h3>
         <p className="text-sm text-gray-500 line-clamp-2 mb-3">{recipe.description}</p>

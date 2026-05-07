@@ -124,8 +124,9 @@ Rules: Complete ingredient lists with quantities. 5-8 detailed steps. List aller
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       recipes.map((recipe: any, index: number) => {
         const title = (recipe.title as string).toLowerCase();
-        const keywords = title.replace(/[^a-z\s]/g, "").split(" ").filter((w: string) => w.length > 3).slice(0, 2).join(",");
-        const aiImageUrl = `https://loremflickr.com/600/400/${keywords || "food,dish"},food?lock=${Date.now() + index}`;
+        const keywords = title.replace(/[^a-z\s]/g, "").split(" ").filter((w: string) => w.length > 3).slice(0, 2).join(" ");
+        const query = encodeURIComponent(keywords ? `${keywords} food recipe` : "food dish recipe");
+        const aiImageUrl = `https://source.unsplash.com/600x400/?${query}&sig=${Date.now() + index}`;
 
         return prisma.recipe.create({
           data: {

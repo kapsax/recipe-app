@@ -52,13 +52,19 @@ export default function RecipeDetail({
   const missingItems = recipe.missingItems ? (JSON.parse(recipe.missingItems) as string[]) : [];
   const allergies = recipe.allergies ? (JSON.parse(recipe.allergies) as string[]) : [];
 
-  const [imgError, setImgError] = useState(false);
-
   const displayTitle = lang === "hi" && recipe.titleHindi ? recipe.titleHindi : recipe.title;
   const displayDesc = lang === "hi" && recipe.descriptionHindi ? recipe.descriptionHindi : recipe.description;
   const displaySteps = lang === "hi" && stepsHindi.length > 0 ? stepsHindi : steps;
-  const rawImageUrl = recipe.aiImageUrl || recipe.imageUrl;
-  const imageUrl = rawImageUrl && !imgError ? rawImageUrl : null;
+
+  const getFallbackUrl = (suffix = "") => {
+    const keywords = recipe.title.toLowerCase().replace(/[^a-z\s]/g, "").split(" ").filter((w) => w.length > 3).slice(0, 2).join(" ");
+    const query = encodeURIComponent(keywords ? `${keywords} food` : "food cooking recipe");
+    return `https://source.unsplash.com/800x500/?${query}&sig=${recipe.id}${suffix}`;
+  };
+
+  const primaryUrl = recipe.aiImageUrl || recipe.imageUrl || getFallbackUrl();
+  const [heroSrc, setHeroSrc] = useState(primaryUrl);
+  const [heroRetried, setHeroRetried] = useState(false);
 
   const handleShare = async () => {
     if (!shareEmail) { toast.error("Enter an email"); return; }
@@ -93,7 +99,7 @@ export default function RecipeDetail({
     const missingHtml = missingItems.length > 0
       ? `<h3 style="color:#d97706;margin-top:24px;">Missing Items</h3><ul>${missingItems.map(i => `<li>${i}</li>`).join("")}</ul>`
       : "";
-    const content = `<html><head><style>body{font-family:Arial,sans-serif;padding:40px;max-width:700px;margin:0 auto}h1{color:#ea580c}img{width:100%;max-height:300px;object-fit:cover;border-radius:12px;margin-bottom:20px}.meta{display:flex;gap:20px;margin:16px 0;color:#666}.badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:bold}.veg{background:#dcfce7;color:#166534}.nonveg{background:#fee2e2;color:#991b1b}h3{margin-top:24px}li{margin:8px 0;line-height:1.6}</style></head><body>${imageUrl ? `<img src="${imageUrl}" alt="${recipe.title}"/>` : ""}<h1>${recipe.title}</h1><p>${recipe.description}</p><div class="meta"><span>Time: ${recipe.time}</span><span>Calories: ${recipe.calories} kcal</span><span class="badge ${recipe.isVeg ? "veg" : "nonveg"}">${recipe.isVeg ? "VEG" : "NON-VEG"}</span></div>${allergyHtml}<h3>Ingredients</h3><ul>${ingredients.map(i => `<li>${i}</li>`).join("")}</ul>${missingHtml}<h3>Steps</h3><ol>${steps.map(s => `<li>${s}</li>`).join("")}</ol></body></html>`;
+    const content = `<html><head><style>body{font-family:Arial,sans-serif;padding:40px;max-width:700px;margin:0 auto}h1{color:#ea580c}img{width:100%;max-height:300px;object-fit:cover;border-radius:12px;margin-bottom:20px}.meta{display:flex;gap:20px;margin:16px 0;color:#666}.badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:bold}.veg{background:#dcfce7;color:#166534}.nonveg{background:#fee2e2;color:#991b1b}h3{margin-top:24px}li{margin:8px 0;line-height:1.6}</style></head><body>${heroSrc ? `<img src="${heroSrc}" alt="${recipe.title}"/>` : ""}<h1>${recipe.title}</h1><p>${recipe.description}</p><div class="meta"><span>Time: ${recipe.time}</span><span>Calories: ${recipe.calories} kcal</span><span class="badge ${recipe.isVeg ? "veg" : "nonveg"}">${recipe.isVeg ? "VEG" : "NON-VEG"}</span></div>${allergyHtml}<h3>Ingredients</h3><ul>${ingredients.map(i => `<li>${i}</li>`).join("")}</ul>${missingHtml}<h3>Steps</h3><ol>${steps.map(s => `<li>${s}</li>`).join("")}</ol></body></html>`;
     const blob = new Blob([content], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     const w = window.open(url, "_blank");
@@ -146,35 +152,26 @@ export default function RecipeDetail({
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {/* Hero Image */}
-        {imageUrl && (
-          <div className="relative rounded-2xl overflow-hidden mb-8 shadow-lg">
-            <img src={imageUrl} alt={recipe.title} className="w-full h-72 md:h-96 object-cover" onError={() => setImgError(true)} />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-            <div className="absolute bottom-6 left-6 right-6">
-              <span className={`inline-block text-xs font-bold px-3 py-1 rounded-full mb-3 ${recipe.isVeg ? "bg-green-500 text-white" : "bg-red-500 text-white"}`}>
-                {recipe.isVeg ? "VEGETARIAN" : "NON-VEGETARIAN"}
-              </span>
-              <h1 className="text-3xl md:text-4xl font-bold text-white">{displayTitle}</h1>
-            </div>
+        <div className="relative rounded-2xl overflow-hidden mb-8 shadow-lg bg-gray-100">
+          <img
+            src={heroSrc}
+            alt={recipe.title}
+            className="w-full h-72 md:h-96 object-cover"
+            onError={() => {
+              if (!heroRetried) {
+                setHeroRetried(true);
+                setHeroSrc(getFallbackUrl("_retry"));
+              }
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+          <div className="absolute bottom-6 left-6 right-6">
+            <span className={`inline-block text-xs font-bold px-3 py-1 rounded-full mb-3 ${recipe.isVeg ? "bg-green-500 text-white" : "bg-red-500 text-white"}`}>
+              {recipe.isVeg ? "VEGETARIAN" : "NON-VEGETARIAN"}
+            </span>
+            <h1 className="text-3xl md:text-4xl font-bold text-white">{displayTitle}</h1>
           </div>
-        )}
-
-        {!imageUrl && (
-          <div className="relative rounded-2xl overflow-hidden mb-8 bg-gray-100">
-            <div className="w-full h-48 flex flex-col items-center justify-center">
-              <svg className="w-16 h-16 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <p className="text-gray-400 font-medium">Image not available</p>
-            </div>
-            <div className="absolute bottom-4 left-6 right-6">
-              <span className={`inline-block text-xs font-bold px-3 py-1 rounded-full mb-2 ${recipe.isVeg ? "bg-green-500 text-white" : "bg-red-500 text-white"}`}>
-                {recipe.isVeg ? "VEGETARIAN" : "NON-VEGETARIAN"}
-              </span>
-              <h1 className="text-2xl font-bold text-gray-900">{displayTitle}</h1>
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* Meta Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
