@@ -125,27 +125,12 @@ Rules: Complete ingredient lists with quantities. 5-8 detailed steps. List aller
 
     const uploadBatchId = existingBatchId || `batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-    // Curated food photos from Unsplash (direct URLs, always available)
-    const FOOD_PHOTOS = [
-      "photo-1546069901-ba9599a7e63c", "photo-1567620905732-2d1ec7ab7445",
-      "photo-1565299624946-b28f40a0ae38", "photo-1540189549336-e6e99c3679fe",
-      "photo-1512621776951-a57141f2eefd", "photo-1482049016688-2d3e1b311543",
-      "photo-1504674900247-0877df9cc836", "photo-1493770348161-369560ae357d",
-      "photo-1476224203421-9ac39bcb3327", "photo-1455619452474-d2be8b1e70cd",
-      "photo-1432139509613-5c4255a78e03", "photo-1473093295043-cdd812d0e601",
-      "photo-1490645935967-10de6ba17061", "photo-1498837167922-ddd27525d352",
-      "photo-1529042410759-befb1204b468", "photo-1606787366850-de6330128bfc",
-      "photo-1547592180-85f173990554", "photo-1563379091339-03b21ab4a4f8",
-      "photo-1551183053-bf91a1d81141", "photo-1574484284002-952d92456975",
-    ];
-
     const savedRecipes = await Promise.all(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      recipes.map((recipe: any, index: number) => {
-        // Pick a photo based on title hash for consistency
-        const hash = (recipe.title as string).split("").reduce((a: number, c: string) => a + c.charCodeAt(0), 0);
-        const photoId = FOOD_PHOTOS[(hash + index) % FOOD_PHOTOS.length];
-        const aiImageUrl = `https://images.unsplash.com/${photoId}?w=600&h=400&fit=crop&auto=format`;
+      recipes.map((recipe: any) => {
+        // Use loremflickr to get a relevant food image based on recipe title
+        const searchWords = recipe.title.replace(/[^a-zA-Z ]/g, "").trim().split(" ").slice(0, 2).join("+");
+        const aiImageUrl = `https://loremflickr.com/600/400/${searchWords},food`;
 
         return prisma.recipe.create({
           data: {

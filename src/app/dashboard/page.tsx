@@ -219,6 +219,26 @@ export default function DashboardPage() {
     return data;
   };
 
+  const generateAIImages = async (recipesToProcess: Recipe[]) => {
+    for (const recipe of recipesToProcess) {
+      try {
+        const res = await fetch("/api/recipes/generate-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ recipeId: recipe.id, title: recipe.title, isVeg: recipe.isVeg }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setRecipes((prev) =>
+            prev.map((r) => (r.id === recipe.id ? { ...r, aiImageUrl: data.imageUrl } : r))
+          );
+        }
+      } catch {
+        // Silent fail - Unsplash fallback will be used
+      }
+    }
+  };
+
   const handleGenerate = async () => {
     if (previews.length === 0) {
       toast.error("Please upload at least one food image");
@@ -234,6 +254,8 @@ export default function DashboardPage() {
       setCurrentBatchId(data.uploadBatchId);
       setHistoryLoaded(false);
       toast.success("Recipes generated!");
+      // Generate AI images in the background
+      generateAIImages(data.recipes);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
       setShowUpload(true);
@@ -255,6 +277,8 @@ export default function DashboardPage() {
       setRecipes((prev) => [...prev, ...data.recipes]);
       setHistoryLoaded(false);
       toast.success("More recipes generated!");
+      // Generate AI images in the background
+      generateAIImages(data.recipes);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -942,28 +966,14 @@ export default function DashboardPage() {
   );
 }
 
-const FALLBACK_FOOD_PHOTOS = [
-  "photo-1546069901-ba9599a7e63c", "photo-1567620905732-2d1ec7ab7445",
-  "photo-1565299624946-b28f40a0ae38", "photo-1540189549336-e6e99c3679fe",
-  "photo-1512621776951-a57141f2eefd", "photo-1482049016688-2d3e1b311543",
-  "photo-1504674900247-0877df9cc836", "photo-1493770348161-369560ae357d",
-  "photo-1476224203421-9ac39bcb3327", "photo-1455619452474-d2be8b1e70cd",
-  "photo-1432139509613-5c4255a78e03", "photo-1473093295043-cdd812d0e601",
-  "photo-1490645935967-10de6ba17061", "photo-1498837167922-ddd27525d352",
-  "photo-1529042410759-befb1204b468", "photo-1606787366850-de6330128bfc",
-  "photo-1547592180-85f173990554", "photo-1563379091339-03b21ab4a4f8",
-  "photo-1551183053-bf91a1d81141", "photo-1574484284002-952d92456975",
-];
-
-function getFallbackImageUrl(title: string, id: string): string {
-  const hash = (title + id).split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  const photoId = FALLBACK_FOOD_PHOTOS[hash % FALLBACK_FOOD_PHOTOS.length];
-  return `https://images.unsplash.com/${photoId}?w=600&h=400&fit=crop&auto=format`;
+function getLoremFlickrUrl(title: string, w = 600, h = 400): string {
+  const searchWords = title.replace(/[^a-zA-Z ]/g, "").trim().split(" ").slice(0, 2).join("+");
+  return `https://loremflickr.com/${w}/${h}/${searchWords},food`;
 }
 
 function RecipeImageSmall({ recipe }: { recipe: Recipe }) {
-  const [src, setSrc] = useState(recipe.aiImageUrl || recipe.imageUrl || getFallbackImageUrl(recipe.title, recipe.id));
-  const [attempts, setAttempts] = useState(0);
+  const primaryUrl = recipe.aiImageUrl || recipe.imageUrl;
+  const [src, setSrc] = useState(primaryUrl || getLoremFlickrUrl(recipe.title, 100, 100));
   const [failed, setFailed] = useState(false);
 
   if (failed) {
@@ -982,9 +992,10 @@ function RecipeImageSmall({ recipe }: { recipe: Recipe }) {
       alt=""
       className="w-12 h-12 object-cover rounded-lg shrink-0 bg-gray-100"
       onError={() => {
-        if (attempts < 2) {
-          setAttempts((a) => a + 1);
-          setSrc(getFallbackImageUrl(recipe.title, recipe.id + `_r${attempts + 1}`));
+        if (!primaryUrl && src.includes("loremflickr")) {
+          setFailed(true);
+        } else if (primaryUrl) {
+          setSrc(getLoremFlickrUrl(recipe.title, 100, 100));
         } else {
           setFailed(true);
         }
@@ -995,8 +1006,7 @@ function RecipeImageSmall({ recipe }: { recipe: Recipe }) {
 
 function RecipeCardThumbnail({ recipe, onClick }: { recipe: Recipe; onClick: () => void }) {
   const primaryUrl = recipe.aiImageUrl || recipe.imageUrl;
-  const [src, setSrc] = useState(primaryUrl || getFallbackImageUrl(recipe.title, recipe.id));
-  const [attempts, setAttempts] = useState(0);
+  const [src, setSrc] = useState(primaryUrl || getLoremFlickrUrl(recipe.title));
   const [failed, setFailed] = useState(false);
 
   return (
@@ -1011,9 +1021,10 @@ function RecipeCardThumbnail({ recipe, onClick }: { recipe: Recipe; onClick: () 
             alt={recipe.title}
             className="w-full h-full object-cover"
             onError={() => {
-              if (attempts < 2) {
-                setAttempts((a) => a + 1);
-                setSrc(getFallbackImageUrl(recipe.title, recipe.id + `_r${attempts + 1}`));
+              if (!primaryUrl && src.includes("loremflickr")) {
+                setFailed(true);
+              } else if (primaryUrl) {
+                setSrc(getLoremFlickrUrl(recipe.title));
               } else {
                 setFailed(true);
               }
